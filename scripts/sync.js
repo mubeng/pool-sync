@@ -46,12 +46,6 @@ async function main() {
       logger.error(`Last error: ${stats.lastError}`);
     }
     
-    if (process.env.GITHUB_ACTIONS) {
-      console.log(`::set-output name=success::${success}`);
-      console.log(`::set-output name=record_count::${stats.lastRecordCount}`);
-      console.log(`::set-output name=sync_time::${stats.lastSyncTime}`);
-    }
-    
     if (success) {
       logger.info('=== Synchronization Completed Successfully ===');
       process.exit(0);

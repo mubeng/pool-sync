@@ -188,13 +188,6 @@ async function main() {
       console.log();
     }
     
-    // GitHub Actions output
-    if (process.env.GITHUB_ACTIONS) {
-      console.log(`::set-output name=status::${overallStatus}`);
-      console.log(`::set-output name=database_status::${checks.database.status}`);
-      console.log(`::set-output name=file_status::${checks.liveFile.status}`);
-    }
-    
     // Exit with appropriate code
     const exitCodes = { healthy: 0, warning: 1, unhealthy: 2, error: 3 };
     const exitCode = exitCodes[overallStatus] !== undefined ? exitCodes[overallStatus] : 3;
