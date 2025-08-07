@@ -1,0 +1,23 @@
+{
+  "name": "proxy-pool-sync",
+  "version": "1.0.0",
+  "description": "mubeng synchronize proxy pool data",
+  "type": "module",
+  "main": "scripts/sync.js",
+  "scripts": {
+    "sync": "node scripts/sync.js",
+    "manual": "node scripts/manual-sync.js",
+    "health": "node scripts/health-check.js",
+    "test": "node scripts/test-connection.js"
+  },
+  "keywords": ["proxy", "sync", "mubeng"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@sqlitecloud/drivers": "^1.0.507"
+  },
+  "private": true,
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

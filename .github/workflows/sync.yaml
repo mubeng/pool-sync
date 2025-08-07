@@ -1,0 +1,102 @@
+name: Proxy Pool Sync
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+env:
+  LOG_LEVEL: INFO
+  MAX_RETRIES: 3
+  BATCH_SIZE: 1000
+  LIVE_FILE_PATH: './live.txt'
+  SQLITECLOUD_URL: ${{ secrets.SQLITECLOUD_URL }}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+    - run: npm install
+
+    - name: Generate live.txt
+      run: |
+        echo "🔄 Generating live.txt from mubeng checks..."
+        cat > checks.sh << 'EOF'
+        ${{ secrets.MUBENG_CHECKS_SCRIPT }}
+        EOF
+
+        bash checks.sh
+        if [ $? -ne 0 ]; then
+          echo "❌ Some checks failed, exiting..."
+          exit 1
+        fi
+
+        cat *.txt | sort -u > live.txt # merge
+        if [ ! -s live.txt ]; then
+          echo "❌ live.txt is empty after generation"
+          exit 1
+        fi
+
+        echo "✅ live.txt generated successfully."
+
+    - name: Health check before sync
+      run: |
+        echo "🔍 Running pre-sync health check..."
+        node scripts/health-check.js -- --json > health-pre.json 2>/dev/null
+        cat health-pre.json
+
+        # Extract status for conditional logic
+        echo "HEALTH_STATUS=$(jq -r '.overallStatus' health-pre.json)" >> $GITHUB_ENV
+
+    - name: Run proxy synchronization
+      run: npm run sync
+
+    - name: Health check after sync
+      if: always()
+      run: |
+        echo "🔍 Running post-sync health check..."
+        node scripts/health-check.js -- --json > health-post.json 2>/dev/null
+        cat health-post.json
+
+    - name: Upload health check results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: health-checks
+        path: |
+          health-pre.json
+          health-post.json
+        retention-days: 3
+
+    - name: Create summary
+      if: always()
+      run: |
+        echo "## 📊 Proxy Pool Sync Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        if [ -f health-pre.json ]; then
+          PRE_STATUS=$(jq -r '.overallStatus' health-pre.json)
+          echo "**Pre-sync Status:** $PRE_STATUS" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        if [ -f health-post.json ]; then
+          POST_STATUS=$(jq -r '.overallStatus' health-post.json)
+          DB_COUNT=$(jq -r '.database.proxyCount // "N/A"' health-post.json)
+          echo "**Post-sync Status:** $POST_STATUS" >> $GITHUB_STEP_SUMMARY
+          echo "**Proxy Count:** $DB_COUNT" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Timestamp:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+        
+    - name: Notify on failure
+      if: failure()
+      run: |
+        echo "❌ Proxy sync failed!"
+        echo "Check the logs above for details."
+        exit 1
